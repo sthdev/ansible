@@ -1,0 +1,55 @@
+- name: setup docker and docker-compose
+  hosts: all
+  become: true
+
+  tasks:
+    - name: install docker
+      block:
+      
+      # Podman conflicts with docker
+      - name: remove podman
+        package:
+          name: 
+            - podman
+            - podman-manpages
+          state: absent
+
+      - name: install dependencies
+        package:
+          name:
+            - yum-utils
+            - device-mapper-persistent-data
+            - lvm2
+
+      - name: install docker
+        package:
+          name: 
+          # The docker repository does not seem to work with CentOS8
+            - https://download.docker.com/linux/centos/7/x86_64/stable/Packages/containerd.io-1.2.6-3.3.el7.x86_64.rpm
+            - https://download.docker.com/linux/centos/7/x86_64/stable/Packages/docker-ce-19.03.5-3.el7.x86_64.rpm
+            - https://download.docker.com/linux/centos/7/x86_64/stable/Packages/docker-ce-cli-19.03.5-3.el7.x86_64.rpm
+
+      - name: create docker group
+        group:
+          name: docker
+
+      - name: get current user name
+        become: false
+        shell: whoami
+        register: username
+
+      - name: add "{{username.stdout}}" to group
+        user:
+          name: "{{username.stdout}}"
+          append: yes
+          groups: docker
+      
+      - name: apply group changes
+        become: false
+        shell: newgrp docker
+
+      - name: start docker daemon
+        service:
+          name: docker
+          state: started
+  
