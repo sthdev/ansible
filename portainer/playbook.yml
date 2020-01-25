@@ -1,0 +1,33 @@
+- name: setup portainer
+  hosts: all
+  vars:
+    admin_password: "adminadmin"
+
+  tasks:
+  - name: create portainer data volume
+    docker_volume:
+      name: portainer_data
+
+  - name: encrypt admin password
+    # Note: Ansible supports password filters like "{{admin_password | password_hash('blowfish')}}". However,
+    # portainer uses BCrypt, which is not supported for some reason. Therefore, we have to encrypt the password
+    # explicitly. Since we do not want to install htpasswd just for this purpose, we use a container for this 
+    # purpose and throw it away afterwards.
+    shell: docker run --rm httpd:2.4-alpine htpasswd -nbB admin {{admin_password}} | cut -d ":" -f 2
+    register: encrypted_admin_password
+
+  - name: start portainer container
+    docker_container:
+      name: portainer
+      image: portainer/portainer
+      state: started
+      env:
+        admin-password: "{{encrypted_admin_password.stdout}}"
+      ports:
+      - "8000:8000"
+      - "9000:9000"
+      restart_policy: always
+      volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+      command: --admin-password={{encrypted_admin_password.stdout}}
