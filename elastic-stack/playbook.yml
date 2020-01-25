@@ -1,0 +1,31 @@
+- name: setup elastic stack
+  hosts: all
+
+  tasks:
+  - name: create elasticstack_network network
+    docker_network:
+      name: "elasticstack_network"
+
+  - name: start elasticsearch
+    block:
+    - name: create elasticsearch_data volume
+      docker_volume:
+        name: "elasticsearch_data"
+
+    - name: start elasticsearch container
+      docker_container:
+        name: elasticsearch
+        hostname: elasticsearch
+        image: elasticsearch:7.5.2
+        state: started
+        env:
+          node.name: elasticsearch
+          discovery.type: single-node
+        networks:
+        - name: "elasticstack_network"
+        networks_cli_compatible: yes
+        ports:
+        - "9200:9200"
+        restart_policy: always
+        volumes:
+        - elasticsearch_data:/usr/share/elasticsearch/data
