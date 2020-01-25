@@ -3,53 +3,61 @@
   become: true
 
   tasks:
+  - name: install docker
+    block:
+    
+    # Podman conflicts with docker
+    - name: remove podman
+      package:
+        name: 
+          - podman
+          - podman-manpages
+        state: absent
+
+    - name: install dependencies
+      package:
+        name:
+          - yum-utils
+          - device-mapper-persistent-data
+          - lvm2
+
     - name: install docker
-      block:
-      
-      # Podman conflicts with docker
-      - name: remove podman
-        package:
-          name: 
-            - podman
-            - podman-manpages
-          state: absent
+      package:
+        name: 
+        # The docker repository does not seem to work with CentOS8
+          - https://download.docker.com/linux/centos/7/x86_64/stable/Packages/containerd.io-1.2.6-3.3.el7.x86_64.rpm
+          - https://download.docker.com/linux/centos/7/x86_64/stable/Packages/docker-ce-19.03.5-3.el7.x86_64.rpm
+          - https://download.docker.com/linux/centos/7/x86_64/stable/Packages/docker-ce-cli-19.03.5-3.el7.x86_64.rpm
 
-      - name: install dependencies
-        package:
-          name:
-            - yum-utils
-            - device-mapper-persistent-data
-            - lvm2
+    - name: create docker group
+      group:
+        name: docker
 
-      - name: install docker
-        package:
-          name: 
-          # The docker repository does not seem to work with CentOS8
-            - https://download.docker.com/linux/centos/7/x86_64/stable/Packages/containerd.io-1.2.6-3.3.el7.x86_64.rpm
-            - https://download.docker.com/linux/centos/7/x86_64/stable/Packages/docker-ce-19.03.5-3.el7.x86_64.rpm
-            - https://download.docker.com/linux/centos/7/x86_64/stable/Packages/docker-ce-cli-19.03.5-3.el7.x86_64.rpm
+    - name: get current user name
+      become: false
+      shell: whoami
+      register: username
 
-      - name: create docker group
-        group:
-          name: docker
+    - name: add "{{username.stdout}}" to group
+      user:
+        name: "{{username.stdout}}"
+        append: yes
+        groups: docker
+    
+    - name: apply group changes
+      become: false
+      shell: newgrp docker
 
-      - name: get current user name
-        become: false
-        shell: whoami
-        register: username
+    - name: start docker daemon
+      service:
+        name: docker
+        state: started
 
-      - name: add "{{username.stdout}}" to group
-        user:
-          name: "{{username.stdout}}"
-          append: yes
-          groups: docker
-      
-      - name: apply group changes
-        become: false
-        shell: newgrp docker
-
-      - name: start docker daemon
-        service:
-          name: docker
-          state: started
-  
+  - name: install docker-compose
+    block:
+    # This downloads a shell script that starts docker-compose ina container.
+    - name: download docker-compose shell script
+      get_url:
+        url: https://github.com/docker/compose/releases/download/1.25.3/run.sh
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
